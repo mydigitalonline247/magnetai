@@ -1,7 +1,7 @@
 # main.py
 from fastapi import FastAPI
 
-app = FastAPI(title="MagnetAI API", description="A FastAPI application for MagnetAI")
+app = FastAPI(title="MagnetAI APP", description="Your automated lifestyle to a stress-free transaction")
 
 @app.get("/")
 def read_root():
