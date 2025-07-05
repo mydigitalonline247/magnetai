@@ -27,10 +27,19 @@ SUPABASE_DATABASE_URL = os.environ.get("SUPABASE_DATABASE_URL", "")
 if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
     raise ValueError("GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set in .env file")
 
-# Initialize Supabase client
+# Initialize Supabase client (will be created when needed)
 supabase: Client = None
-if SUPABASE_URL and SUPABASE_KEY:
-    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+def get_supabase_client():
+    """Get or create Supabase client"""
+    global supabase
+    if supabase is None and SUPABASE_URL and SUPABASE_KEY:
+        try:
+            supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        except Exception as e:
+            print(f"Failed to create Supabase client: {e}")
+            return None
+    return supabase
 
 app = FastAPI(title="MagnetAI APP", description="Your automated lifestyle to a stress-free transaction")
 
@@ -68,18 +77,19 @@ async def debug_env():
         "redirect_uri": os.environ.get("GOOGLE_REDIRECT_URI", "not set"),
         "client_id_length": len(os.environ.get("GOOGLE_CLIENT_ID", "")),
         "client_secret_length": len(os.environ.get("GOOGLE_CLIENT_SECRET", "")),
-        "supabase_client_initialized": supabase is not None
+        "supabase_client_initialized": get_supabase_client() is not None
     }
 
 @app.get("/debug/supabase")
 async def debug_supabase():
     """Debug endpoint to test Supabase connection"""
-    if not supabase:
+    supabase_client = get_supabase_client()
+    if not supabase_client:
         return {"error": "Supabase client not initialized"}
     
     try:
         # Try to query the users table
-        result = supabase.table("users").select("count", count="exact").execute()
+        result = supabase_client.table("users").select("count", count="exact").execute()
         return {
             "success": True,
             "user_count": result.count,
@@ -172,16 +182,17 @@ async def google_callback(code: str):
             }
             
             try:
-                if supabase:
+                supabase_client = get_supabase_client()
+                if supabase_client:
                     # Check if user exists
-                    existing_user = supabase.table("users").select("*").eq("google_id", user_info["id"]).execute()
+                    existing_user = supabase_client.table("users").select("*").eq("google_id", user_info["id"]).execute()
                     
                     if existing_user.data:
                         # Update existing user
-                        supabase.table("users").update(user_data).eq("google_id", user_info["id"]).execute()
+                        supabase_client.table("users").update(user_data).eq("google_id", user_info["id"]).execute()
                     else:
                         # Insert new user
-                        supabase.table("users").insert(user_data).execute()
+                        supabase_client.table("users").insert(user_data).execute()
                 else:
                     # Fallback to in-memory storage
                     users_db[user_info["id"]] = user_info
@@ -229,9 +240,10 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     
     # Try to get user from Supabase first
     user_info = None
-    if supabase:
+    supabase_client = get_supabase_client()
+    if supabase_client:
         try:
-            result = supabase.table("users").select("*").eq("google_id", user_id).execute()
+            result = supabase_client.table("users").select("*").eq("google_id", user_id).execute()
             if result.data:
                 user_info = result.data[0]
         except Exception as db_error:
