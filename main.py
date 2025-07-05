@@ -56,6 +56,18 @@ users_db = {}
 def read_root():
     return {"message": "Hello, World!", "status": "running"}
 
+@app.get("/debug/env")
+async def debug_env():
+    """Debug endpoint to check environment variables"""
+    return {
+        "client_id_set": bool(os.getenv("GOOGLE_CLIENT_ID")),
+        "client_secret_set": bool(os.getenv("GOOGLE_CLIENT_SECRET")),
+        "supabase_url_set": bool(os.getenv("SUPABASE_DATABASE_URL")),
+        "redirect_uri": os.getenv("GOOGLE_REDIRECT_URI", "not set"),
+        "client_id_length": len(os.getenv("GOOGLE_CLIENT_ID", "")),
+        "client_secret_length": len(os.getenv("GOOGLE_CLIENT_SECRET", ""))
+    }
+
 @app.get("/login")
 async def login_page():
     """Serve the login page for local testing"""
