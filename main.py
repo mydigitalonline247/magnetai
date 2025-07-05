@@ -63,10 +63,34 @@ async def debug_env():
         "client_id_set": bool(os.environ.get("GOOGLE_CLIENT_ID")),
         "client_secret_set": bool(os.environ.get("GOOGLE_CLIENT_SECRET")),
         "supabase_url_set": bool(os.environ.get("SUPABASE_DATABASE_URL")),
+        "supabase_url": os.environ.get("SUPABASE_URL", "not set"),
+        "supabase_key": os.environ.get("SUPABASE_ANON_KEY", "not set")[:10] + "..." if os.environ.get("SUPABASE_ANON_KEY") else "not set",
         "redirect_uri": os.environ.get("GOOGLE_REDIRECT_URI", "not set"),
         "client_id_length": len(os.environ.get("GOOGLE_CLIENT_ID", "")),
-        "client_secret_length": len(os.environ.get("GOOGLE_CLIENT_SECRET", ""))
+        "client_secret_length": len(os.environ.get("GOOGLE_CLIENT_SECRET", "")),
+        "supabase_client_initialized": supabase is not None
     }
+
+@app.get("/debug/supabase")
+async def debug_supabase():
+    """Debug endpoint to test Supabase connection"""
+    if not supabase:
+        return {"error": "Supabase client not initialized"}
+    
+    try:
+        # Try to query the users table
+        result = supabase.table("users").select("count", count="exact").execute()
+        return {
+            "success": True,
+            "user_count": result.count,
+            "message": "Supabase connection working"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Supabase connection failed"
+        }
 
 @app.get("/login")
 async def login_page():
