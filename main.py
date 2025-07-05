@@ -14,14 +14,14 @@ from supabase import create_client, Client
 load_dotenv()
 
 # Google OAuth Configuration
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/auth/google/callback")
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:8000/auth/google/callback")
 
 # Supabase Configuration
-SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY", "")
-SUPABASE_DATABASE_URL = os.getenv("SUPABASE_DATABASE_URL", "")
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
+SUPABASE_DATABASE_URL = os.environ.get("SUPABASE_DATABASE_URL", "")
 
 # Validate required environment variables
 if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
@@ -60,12 +60,12 @@ def read_root():
 async def debug_env():
     """Debug endpoint to check environment variables"""
     return {
-        "client_id_set": bool(os.getenv("GOOGLE_CLIENT_ID")),
-        "client_secret_set": bool(os.getenv("GOOGLE_CLIENT_SECRET")),
-        "supabase_url_set": bool(os.getenv("SUPABASE_DATABASE_URL")),
-        "redirect_uri": os.getenv("GOOGLE_REDIRECT_URI", "not set"),
-        "client_id_length": len(os.getenv("GOOGLE_CLIENT_ID", "")),
-        "client_secret_length": len(os.getenv("GOOGLE_CLIENT_SECRET", ""))
+        "client_id_set": bool(os.environ.get("GOOGLE_CLIENT_ID")),
+        "client_secret_set": bool(os.environ.get("GOOGLE_CLIENT_SECRET")),
+        "supabase_url_set": bool(os.environ.get("SUPABASE_DATABASE_URL")),
+        "redirect_uri": os.environ.get("GOOGLE_REDIRECT_URI", "not set"),
+        "client_id_length": len(os.environ.get("GOOGLE_CLIENT_ID", "")),
+        "client_secret_length": len(os.environ.get("GOOGLE_CLIENT_SECRET", ""))
     }
 
 @app.get("/login")
