@@ -11,6 +11,11 @@ from dotenv import load_dotenv
 from supabase import create_client, Client
 import sqlite3
 from datetime import datetime
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -93,12 +98,12 @@ def get_supabase_client():
     global supabase
     if supabase is None and SUPABASE_URL and SUPABASE_KEY:
         try:
-            print(f"Creating Supabase client with URL: {SUPABASE_URL}")
-            print(f"Using key type: {'Service Role' if SUPABASE_KEY == os.environ.get('SUPABASE_SERVICE_ROLE_KEY') else 'Anon'}")
+            logger.info(f"Creating Supabase client with URL: {SUPABASE_URL}")
+            logger.info(f"Using key type: {'Service Role' if SUPABASE_KEY == os.environ.get('SUPABASE_SERVICE_ROLE_KEY') else 'Anon'}")
             supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-            print("Supabase client created successfully")
+            logger.info("Supabase client created successfully")
         except Exception as e:
-            print(f"Failed to create Supabase client: {e}")
+            logger.error(f"Failed to create Supabase client: {e}")
             return None
     return supabase
 
@@ -292,24 +297,24 @@ async def google_callback(code: str):
                 # Try Supabase first (for production)
                 supabase_client = get_supabase_client()
                 if supabase_client:
-                    print("Attempting to store user in Supabase...")
+                    logger.info("Attempting to store user in Supabase...")
                     # Check if user exists
                     existing_user = supabase_client.table("users").select("*").eq("google_id", user_info["id"]).execute()
                     
                     if existing_user.data:
                         # Update existing user
                         supabase_client.table("users").update(user_data).eq("google_id", user_info["id"]).execute()
-                        print(f"User updated in Supabase: {user_info['email']}")
+                        logger.info(f"User updated in Supabase: {user_info['email']}")
                     else:
                         # Insert new user
                         supabase_client.table("users").insert(user_data).execute()
-                        print(f"User stored in Supabase: {user_info['email']}")
+                        logger.info(f"User stored in Supabase: {user_info['email']}")
                 else:
                     raise Exception("Supabase client not available")
                     
             except Exception as supabase_error:
-                print(f"Supabase error: {supabase_error}")
-                print("Falling back to local SQLite database...")
+                logger.error(f"Supabase error: {supabase_error}")
+                logger.info("Falling back to local SQLite database...")
                 
                 # Fallback to local SQLite database
                 try:
@@ -336,13 +341,13 @@ async def google_callback(code: str):
                     
                     conn.commit()
                     conn.close()
-                    print(f"User stored in local database: {user_info['email']}")
+                    logger.info(f"User stored in local database: {user_info['email']}")
                     
                 except Exception as local_db_error:
-                    print(f"Local database error: {local_db_error}")
+                    logger.error(f"Local database error: {local_db_error}")
                     # Final fallback to in-memory storage
                     users_db[user_info["id"]] = user_info
-                    print(f"User stored in memory: {user_info['email']}")
+                    logger.info(f"User stored in memory: {user_info['email']}")
             
             # Create a simple token (in production, use JWT)
             access_token = f"user_{user_info['id']}"
@@ -397,7 +402,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         
         conn.close()
     except Exception as db_error:
-        print(f"Local database error: {db_error}")
+        logger.error(f"Local database error: {db_error}")
     
     # Fallback to in-memory storage
     if not user_info:

@@ -8,6 +8,6 @@ GOOGLE_CLIENT_SECRET=your-google-client-secret-here
 GOOGLE_REDIRECT_URI=http://localhost:8000/auth/google/callback
 
 # Supabase Configuration
-SUPABASE_URL=your-supabase-project-url
+SUPABASE_URL=nejyyrpmsfrphjuglwxp
 SUPABASE_ANON_KEY=your-supabase-anon-key
 SUPABASE_DATABASE_URL=your-supabase-database-url 
