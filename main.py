@@ -9,6 +9,8 @@ from typing import Optional
 import json
 from dotenv import load_dotenv
 from supabase import create_client, Client
+import sqlite3
+from datetime import datetime
 
 # Load environment variables from .env file
 load_dotenv()
@@ -16,12 +18,68 @@ load_dotenv()
 # Google OAuth Configuration
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
-GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:8000/auth/google/callback")
+
+# Dynamic redirect URI for production
+def get_redirect_uri():
+    """Get the appropriate redirect URI based on environment"""
+    if os.environ.get("VERCEL_URL"):
+        # Production on Vercel
+        return f"https://{os.environ.get('VERCEL_URL')}/auth/google/callback"
+    elif os.environ.get("PRODUCTION_URL"):
+        # Use specific production URL if set
+        return f"{os.environ.get('PRODUCTION_URL')}/auth/google/callback"
+    elif os.environ.get("NODE_ENV") == "production" or os.environ.get("VERCEL_ENV") == "production":
+        # Fallback for production environment
+        return "https://magnetai.vercel.app/auth/google/callback"
+    else:
+        # Local development
+        return os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:8000/auth/google/callback")
+
+GOOGLE_REDIRECT_URI = get_redirect_uri()
 
 # Supabase Configuration.
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
-SUPABASE_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
+# Use service role key for local development to bypass RLS, fallback to anon key
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_ANON_KEY", "")
 SUPABASE_DATABASE_URL = os.environ.get("SUPABASE_DATABASE_URL", "")
+
+# Local SQLite database for testing (only in development)
+LOCAL_DB_PATH = "local_users.db" if not os.environ.get("VERCEL_URL") else None
+
+def init_local_db():
+    """Initialize local SQLite database"""
+    if not LOCAL_DB_PATH:
+        return  # Skip in production
+    
+    conn = sqlite3.connect(LOCAL_DB_PATH)
+    cursor = conn.cursor()
+    
+    # Create users table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            google_id TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            picture TEXT,
+            last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    conn.commit()
+    conn.close()
+
+def get_local_db_connection():
+    """Get SQLite database connection"""
+    if not LOCAL_DB_PATH:
+        return None  # No local DB in production
+    return sqlite3.connect(LOCAL_DB_PATH)
+
+# Initialize local database (only in development)
+if LOCAL_DB_PATH:
+    init_local_db()
 
 # Validate required environment variables
 if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
@@ -35,7 +93,10 @@ def get_supabase_client():
     global supabase
     if supabase is None and SUPABASE_URL and SUPABASE_KEY:
         try:
+            print(f"Creating Supabase client with URL: {SUPABASE_URL}")
+            print(f"Using key type: {'Service Role' if SUPABASE_KEY == os.environ.get('SUPABASE_SERVICE_ROLE_KEY') else 'Anon'}")
             supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+            print("Supabase client created successfully")
         except Exception as e:
             print(f"Failed to create Supabase client: {e}")
             return None
@@ -68,12 +129,16 @@ def read_root():
 @app.get("/debug/env")
 async def debug_env():
     """Debug endpoint to check environment variables"""
+    service_role_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    anon_key = os.environ.get("SUPABASE_ANON_KEY")
     return {
         "client_id_set": bool(os.environ.get("GOOGLE_CLIENT_ID")),
         "client_secret_set": bool(os.environ.get("GOOGLE_CLIENT_SECRET")),
         "supabase_url_set": bool(os.environ.get("SUPABASE_DATABASE_URL")),
         "supabase_url": os.environ.get("SUPABASE_URL", "not set"),
-        "supabase_key": os.environ.get("SUPABASE_ANON_KEY", "not set")[:10] + "..." if os.environ.get("SUPABASE_ANON_KEY") else "not set",
+        "supabase_anon_key": anon_key[:10] + "..." if anon_key else "not set",
+        "supabase_service_role_key": service_role_key[:10] + "..." if service_role_key else "not set",
+        "supabase_key_being_used": SUPABASE_KEY[:10] + "..." if SUPABASE_KEY else "not set",
         "redirect_uri": os.environ.get("GOOGLE_REDIRECT_URI", "not set"),
         "client_id_length": len(os.environ.get("GOOGLE_CLIENT_ID", "")),
         "client_secret_length": len(os.environ.get("GOOGLE_CLIENT_SECRET", "")),
@@ -82,25 +147,67 @@ async def debug_env():
 
 @app.get("/debug/supabase")
 async def debug_supabase():
-    """Debug endpoint to test Supabase connection"""
-    supabase_client = get_supabase_client()
-    if not supabase_client:
-        return {"error": "Supabase client not initialized"}
+    """Debug endpoint to test database connection"""
+    result = {
+        "supabase": {"available": False, "user_count": 0, "error": None},
+        "local_db": {"available": False, "user_count": 0, "error": None},
+        "database_type": "Unknown"
+    }
     
+    # Test Supabase connection
     try:
-        # Try to query the users table
-        result = supabase_client.table("users").select("count", count="exact").execute()
-        return {
-            "success": True,
-            "user_count": result.count,
-            "message": "Supabase connection working"
-        }
+        supabase_client = get_supabase_client()
+        if supabase_client:
+            # Try to query the users table
+            supabase_result = supabase_client.table("users").select("count", count="exact").execute()
+            result["supabase"] = {
+                "available": True,
+                "user_count": supabase_result.count,
+                "error": None
+            }
+            result["database_type"] = "Supabase"
+        else:
+            result["supabase"]["error"] = "Supabase client not initialized"
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "message": "Supabase connection failed"
-        }
+        result["supabase"]["error"] = str(e)
+    
+    # Test local SQLite database
+    try:
+        conn = get_local_db_connection()
+        if conn:
+            cursor = conn.cursor()
+            
+            # Count users in local database
+            cursor.execute("SELECT COUNT(*) FROM users")
+            user_count = cursor.fetchone()[0]
+            
+            conn.close()
+            
+            result["local_db"] = {
+                "available": True,
+                "user_count": user_count,
+                "error": None
+            }
+            
+            # If Supabase is not available, use local as primary
+            if not result["supabase"]["available"]:
+                result["database_type"] = "SQLite"
+        else:
+            result["local_db"] = {
+                "available": False,
+                "user_count": 0,
+                "error": "Local database not available in production"
+            }
+            
+    except Exception as e:
+        result["local_db"]["error"] = str(e)
+    
+    return result
+
+@app.get("/test-supabase")
+async def test_supabase():
+    """Alias for debug/supabase endpoint"""
+    return await debug_supabase()
 
 @app.get("/login")
 async def login_page():
@@ -182,24 +289,60 @@ async def google_callback(code: str):
             }
             
             try:
+                # Try Supabase first (for production)
                 supabase_client = get_supabase_client()
                 if supabase_client:
+                    print("Attempting to store user in Supabase...")
                     # Check if user exists
                     existing_user = supabase_client.table("users").select("*").eq("google_id", user_info["id"]).execute()
                     
                     if existing_user.data:
                         # Update existing user
                         supabase_client.table("users").update(user_data).eq("google_id", user_info["id"]).execute()
+                        print(f"User updated in Supabase: {user_info['email']}")
                     else:
                         # Insert new user
                         supabase_client.table("users").insert(user_data).execute()
+                        print(f"User stored in Supabase: {user_info['email']}")
                 else:
-                    # Fallback to in-memory storage
+                    raise Exception("Supabase client not available")
+                    
+            except Exception as supabase_error:
+                print(f"Supabase error: {supabase_error}")
+                print("Falling back to local SQLite database...")
+                
+                # Fallback to local SQLite database
+                try:
+                    conn = get_local_db_connection()
+                    cursor = conn.cursor()
+                    
+                    # Check if user exists
+                    cursor.execute("SELECT * FROM users WHERE google_id = ?", (user_info["id"],))
+                    existing_user = cursor.fetchone()
+                    
+                    if existing_user:
+                        # Update existing user
+                        cursor.execute("""
+                            UPDATE users 
+                            SET email = ?, name = ?, picture = ?, last_login = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                            WHERE google_id = ?
+                        """, (user_info["email"], user_info["name"], user_info.get("picture", ""), user_info["id"]))
+                    else:
+                        # Insert new user
+                        cursor.execute("""
+                            INSERT INTO users (google_id, email, name, picture, last_login, created_at, updated_at)
+                            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """, (user_info["id"], user_info["email"], user_info["name"], user_info.get("picture", "")))
+                    
+                    conn.commit()
+                    conn.close()
+                    print(f"User stored in local database: {user_info['email']}")
+                    
+                except Exception as local_db_error:
+                    print(f"Local database error: {local_db_error}")
+                    # Final fallback to in-memory storage
                     users_db[user_info["id"]] = user_info
-            except Exception as db_error:
-                print(f"Database error: {db_error}")
-                # Fallback to in-memory storage
-                users_db[user_info["id"]] = user_info
+                    print(f"User stored in memory: {user_info['email']}")
             
             # Create a simple token (in production, use JWT)
             access_token = f"user_{user_info['id']}"
@@ -238,16 +381,23 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     
     user_id = token.replace("user_", "")
     
-    # Try to get user from Supabase first
+    # Try to get user from local database first
     user_info = None
-    supabase_client = get_supabase_client()
-    if supabase_client:
-        try:
-            result = supabase_client.table("users").select("*").eq("google_id", user_id).execute()
-            if result.data:
-                user_info = result.data[0]
-        except Exception as db_error:
-            print(f"Database error: {db_error}")
+    try:
+        conn = get_local_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT * FROM users WHERE google_id = ?", (user_id,))
+        result = cursor.fetchone()
+        
+        if result:
+            # Convert SQLite row to dict
+            columns = [description[0] for description in cursor.description]
+            user_info = dict(zip(columns, result))
+        
+        conn.close()
+    except Exception as db_error:
+        print(f"Local database error: {db_error}")
     
     # Fallback to in-memory storage
     if not user_info:
