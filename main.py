@@ -166,9 +166,11 @@ async def debug_supabase():
         if supabase_client:
             # Try to query the users table
             supabase_result = supabase_client.table("users").select("*").execute()
+            # Get count from the data length
+            user_count = len(supabase_result.data) if supabase_result.data else 0
             result["supabase"] = {
                 "available": True,
-                "user_count": supabase_result.count,
+                "user_count": user_count,
                 "error": None
             }
             result["database_type"] = "Supabase"
