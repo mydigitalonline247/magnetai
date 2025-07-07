@@ -8,7 +8,8 @@ import os
 from typing import Optional
 import json
 from dotenv import load_dotenv
-from supabase import create_client, Client
+from supabase import create_client
+from supabase.client import Client
 import sqlite3
 from datetime import datetime
 import logging
@@ -91,7 +92,7 @@ if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
     raise ValueError("GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set in .env file")
 
 # Initialize Supabase client (will be created when needed)
-supabase: Client = None
+supabase: Optional[Client] = None
 
 def get_supabase_client():
     """Get or create Supabase client"""
@@ -164,7 +165,7 @@ async def debug_supabase():
         supabase_client = get_supabase_client()
         if supabase_client:
             # Try to query the users table
-            supabase_result = supabase_client.table("users").select("count", count="exact").execute()
+            supabase_result = supabase_client.table("users").select("*").execute()
             result["supabase"] = {
                 "available": True,
                 "user_count": supabase_result.count,
@@ -241,7 +242,7 @@ async def init_oauth():
     return RedirectResponse(url="/auth/google")
 
 @app.get("/items/{item_id}")
-def read_item(item_id: int, q: str = None):
+def read_item(item_id: int, q: Optional[str] = None):
     return {"item_id": item_id, "query": q}
 
 # Google OAuth endpoints
@@ -319,29 +320,32 @@ async def google_callback(code: str):
                 # Fallback to local SQLite database
                 try:
                     conn = get_local_db_connection()
-                    cursor = conn.cursor()
-                    
-                    # Check if user exists
-                    cursor.execute("SELECT * FROM users WHERE google_id = ?", (user_info["id"],))
-                    existing_user = cursor.fetchone()
-                    
-                    if existing_user:
-                        # Update existing user
-                        cursor.execute("""
-                            UPDATE users 
-                            SET email = ?, name = ?, picture = ?, last_login = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                            WHERE google_id = ?
-                        """, (user_info["email"], user_info["name"], user_info.get("picture", ""), user_info["id"]))
+                    if conn is not None:
+                        cursor = conn.cursor()
+                        
+                        # Check if user exists
+                        cursor.execute("SELECT * FROM users WHERE google_id = ?", (user_info["id"],))
+                        existing_user = cursor.fetchone()
+                        
+                        if existing_user:
+                            # Update existing user
+                            cursor.execute("""
+                                UPDATE users 
+                                SET email = ?, name = ?, picture = ?, last_login = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                                WHERE google_id = ?
+                            """, (user_info["email"], user_info["name"], user_info.get("picture", ""), user_info["id"]))
+                        else:
+                            # Insert new user
+                            cursor.execute("""
+                                INSERT INTO users (google_id, email, name, picture, last_login, created_at, updated_at)
+                                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                            """, (user_info["id"], user_info["email"], user_info["name"], user_info.get("picture", "")))
+                        
+                        conn.commit()
+                        conn.close()
+                        logger.info(f"User stored in local database: {user_info['email']}")
                     else:
-                        # Insert new user
-                        cursor.execute("""
-                            INSERT INTO users (google_id, email, name, picture, last_login, created_at, updated_at)
-                            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                        """, (user_info["id"], user_info["email"], user_info["name"], user_info.get("picture", "")))
-                    
-                    conn.commit()
-                    conn.close()
-                    logger.info(f"User stored in local database: {user_info['email']}")
+                        raise Exception("Local database not available")
                     
                 except Exception as local_db_error:
                     logger.error(f"Local database error: {local_db_error}")
@@ -390,17 +394,18 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     user_info = None
     try:
         conn = get_local_db_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT * FROM users WHERE google_id = ?", (user_id,))
-        result = cursor.fetchone()
-        
-        if result:
-            # Convert SQLite row to dict
-            columns = [description[0] for description in cursor.description]
-            user_info = dict(zip(columns, result))
-        
-        conn.close()
+        if conn is not None:
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT * FROM users WHERE google_id = ?", (user_id,))
+            result = cursor.fetchone()
+            
+            if result:
+                # Convert SQLite row to dict
+                columns = [description[0] for description in cursor.description]
+                user_info = dict(zip(columns, result))
+            
+            conn.close()
     except Exception as db_error:
         logger.error(f"Local database error: {db_error}")
     
