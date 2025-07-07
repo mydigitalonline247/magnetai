@@ -7,4 +7,4 @@ httpx==0.25.2
 python-dotenv==1.0.0
 supabase==0.7.1
 psycopg2-binary==2.9.9
-anyio==4.2.0
+anyio==4.0.0
