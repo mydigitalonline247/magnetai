@@ -28,17 +28,13 @@ GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 # Dynamic redirect URI for production
 def get_redirect_uri():
     """Get the appropriate redirect URI based on environment"""
-    if os.environ.get("VERCEL_URL"):
-        # Production on Vercel
-        return f"https://{os.environ.get('VERCEL_URL')}/auth/google/callback"
+    if True:  # Hardcoded for production
+        return f"https://magnetai.vercel.app/auth/google/callback"
     elif os.environ.get("PRODUCTION_URL"):
-        # Use specific production URL if set
         return f"{os.environ.get('PRODUCTION_URL')}/auth/google/callback"
     elif os.environ.get("NODE_ENV") == "production" or os.environ.get("VERCEL_ENV") == "production":
-        # Fallback for production environment
         return "https://magnetai.vercel.app/auth/google/callback"
     else:
-        # Local development
         return os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:8000/auth/google/callback")
 
 GOOGLE_REDIRECT_URI = get_redirect_uri()
