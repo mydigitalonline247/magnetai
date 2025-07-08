@@ -394,19 +394,26 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         conn = get_local_db_connection()
         if conn is not None:
             cursor = conn.cursor()
-            
             cursor.execute("SELECT * FROM users WHERE google_id = ?", (user_id,))
             result = cursor.fetchone()
-            
             if result:
-                # Convert SQLite row to dict
                 columns = [description[0] for description in cursor.description]
                 user_info = dict(zip(columns, result))
-            
             conn.close()
     except Exception as db_error:
         logger.error(f"Local database error: {db_error}")
-    
+
+    # Try to get user from Supabase if not found locally
+    if not user_info:
+        try:
+            supabase_client = get_supabase_client()
+            if supabase_client:
+                result = supabase_client.table("users").select("*").eq("google_id", user_id).execute()
+                if result.data and len(result.data) > 0:
+                    user_info = result.data[0]
+        except Exception as supabase_error:
+            logger.error(f"Supabase error: {supabase_error}")
+
     # Fallback to in-memory storage
     if not user_info:
         user_info = users_db.get(user_id)
