@@ -1,12 +1,12 @@
 from fastapi import APIRouter, HTTPException, status, Depends
-from app.models import GoogleTokenRequest, LoginResponse, UserResponse
+from app.models import GoogleTokenRequest, LoginResponse, UserResponse, BaseResponse
 from app.auth import create_access_token, verify_token, verify_google_token
 from datetime import timedelta
 from app.config import JWT_EXPIRATION_HOURS
 
 router = APIRouter()
 
-@router.post("/auth/google", response_model=LoginResponse)
+@router.post("/auth/google", response_model=BaseResponse)
 async def google_auth(token_request: GoogleTokenRequest):
     try:
         idinfo = verify_google_token(token_request.id_token)
@@ -22,10 +22,15 @@ async def google_auth(token_request: GoogleTokenRequest):
             data={"sub": user_data["id"], "email": user_data["email"]},
             expires_delta=access_token_expires
         )
-        return LoginResponse(
+        login_response = LoginResponse(
             access_token=access_token,
             token_type="bearer",
             user=UserResponse(**user_data)
+        )
+        return BaseResponse(
+            success=True,
+            message="Login was successful",
+            data=login_response.dict()
         )
     except ValueError as e:
         raise HTTPException(
@@ -38,12 +43,17 @@ async def google_auth(token_request: GoogleTokenRequest):
             detail=f"Authentication failed: {str(e)}"
         )
 
-@router.get("/auth/me", response_model=UserResponse)
+@router.get("/auth/me", response_model=BaseResponse)
 async def get_current_user(token_data: dict = Depends(verify_token)):
-    return UserResponse(
+    user_response = UserResponse(
         id=token_data["sub"],
         email=token_data["email"],
         name="", # You'd get this from your database
         picture="", # You'd get this from your database
         verified_email=True
+    )
+    return BaseResponse(
+        success=True,
+        message="User profile retrieved successfully",
+        data=user_response.dict()
     ) 

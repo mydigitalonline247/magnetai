@@ -1,5 +1,11 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Any
+from datetime import datetime
+
+class BaseResponse(BaseModel):
+    success: bool
+    message: str
+    data: Optional[Any] = None
 
 class GoogleTokenRequest(BaseModel):
     id_token: str
