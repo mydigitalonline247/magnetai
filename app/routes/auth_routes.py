@@ -6,7 +6,7 @@ from app.config import JWT_EXPIRATION_HOURS
 
 router = APIRouter()
 
-@router.post("/auth/google", response_model=BaseResponse)
+@router.post("/auth/google")
 async def google_auth(token_request: GoogleTokenRequest):
     try:
         idinfo = verify_google_token(token_request.id_token)
@@ -43,7 +43,7 @@ async def google_auth(token_request: GoogleTokenRequest):
             detail=f"Authentication failed: {str(e)}"
         )
 
-@router.get("/auth/me", response_model=BaseResponse)
+@router.get("/auth/me")
 async def get_current_user(token_data: dict = Depends(verify_token)):
     user_response = UserResponse(
         id=token_data["sub"],

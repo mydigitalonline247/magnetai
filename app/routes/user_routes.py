@@ -4,7 +4,7 @@ from app.models import BaseResponse
 
 router = APIRouter()
 
-@router.get("/protected", response_model=BaseResponse)
+@router.get("/protected")
 async def protected_route(token_data: dict = Depends(verify_token)):
     return BaseResponse(
         success=True,
@@ -12,7 +12,7 @@ async def protected_route(token_data: dict = Depends(verify_token)):
         data={"message": f"Hello {token_data['email']}, this is a protected route!"}
     )
 
-@router.get("/", response_model=BaseResponse)
+@router.get("/")
 async def root():
     return BaseResponse(
         success=True,
