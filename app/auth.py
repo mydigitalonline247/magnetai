@@ -10,11 +10,19 @@ import firebase_admin
 from firebase_admin import auth as firebase_auth, credentials as firebase_credentials
 import os
 from app.utils import base_response
+import base64
+import json
 
 # Initialize Firebase Admin SDK if not already initialized
 if not firebase_admin._apps:
     cred_path = os.environ.get("FIREBASE_CREDENTIALS")
-    if cred_path:
+    cred_b64 = os.environ.get("FIREBASE_CREDENTIALS_BASE64")
+    if cred_b64:
+        cred_json = base64.b64decode(cred_b64).decode("utf-8")
+        cred_dict = json.loads(cred_json)
+        cred = firebase_credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred)
+    elif cred_path:
         cred = firebase_credentials.Certificate(cred_path)
         firebase_admin.initialize_app(cred)
     else:
