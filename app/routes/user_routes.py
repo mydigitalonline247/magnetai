@@ -16,6 +16,6 @@ async def protected_route(token_data: dict = Depends(verify_token)):
 async def root():
     return BaseResponse(
         success=True,
-        message="API is running successfully",
-        data={"message": "Google OAuth API is running"}
+        message="MagnetAI is running successfully",
+        data={"message": "MagnetAI is running"}
     ) 

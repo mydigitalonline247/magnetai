@@ -7,7 +7,7 @@ from app.models import BaseResponse
 from datetime import datetime
 import json
 
-app = FastAPI(title="Google OAuth API")
+app = FastAPI(title="MagnetAI")
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
