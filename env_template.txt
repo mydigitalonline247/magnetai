@@ -2,10 +2,8 @@
 # Copy this to a .env file and replace with your actual credentials
 # DO NOT commit real credentials to version control!
 
-# Google OAuth Configuration
-GOOGLE_CLIENT_ID=your-google-client-id-here
-GOOGLE_CLIENT_SECRET=your-google-client-secret-here
-GOOGLE_REDIRECT_URI=http://localhost:8000/auth/google/callback
+# Firebase Admin SDK Credentials
+FIREBASE_CREDENTIALS=your-firebase-credentials-path.json
 
 # Supabase Configuration
 SUPABASE_URL=nejyyrpmsfrphjuglwxp

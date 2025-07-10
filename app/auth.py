@@ -6,6 +6,18 @@ from google.oauth2 import id_token
 from google.auth.transport import requests
 from datetime import datetime, timedelta
 from app.config import GOOGLE_CLIENT_ID, JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRATION_HOURS
+import firebase_admin
+from firebase_admin import auth as firebase_auth, credentials as firebase_credentials
+import os
+
+# Initialize Firebase Admin SDK if not already initialized
+if not firebase_admin._apps:
+    cred_path = os.environ.get("FIREBASE_CREDENTIALS")
+    if cred_path:
+        cred = firebase_credentials.Certificate(cred_path)
+        firebase_admin.initialize_app(cred)
+    else:
+        firebase_admin.initialize_app()
 
 security = HTTPBearer()
 
@@ -44,4 +56,11 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
         )
 
 def verify_google_token(id_token_str: str):
-    return id_token.verify_oauth2_token(id_token_str, requests.Request(), GOOGLE_CLIENT_ID) 
+    try:
+        decoded_token = firebase_auth.verify_id_token(id_token_str)
+        return decoded_token
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid Firebase ID token: {str(e)}"
+        ) 
