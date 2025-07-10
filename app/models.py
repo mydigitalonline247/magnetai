@@ -7,7 +7,7 @@ class BaseResponse(BaseModel):
     message: str
     data: Optional[Any] = None
 
-class GoogleTokenRequest(BaseModel):
+class FirebaseTokenRequest(BaseModel):
     id_token: str
 
 class UserResponse(BaseModel):

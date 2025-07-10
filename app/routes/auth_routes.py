@@ -6,15 +6,19 @@ from app.config import JWT_EXPIRATION_HOURS
 
 router = APIRouter()
 
-@router.post("/auth/google")
-async def google_auth(token_request: GoogleTokenRequest):
+@router.post("/auth/firebase")
+async def firebase_auth(token_request: GoogleTokenRequest):
+    """
+    Authenticate a user using a Firebase ID token (from any provider: Google, Email, etc.).
+    Expects a Firebase ID token from the frontend (obtained via Firebase Auth).
+    """
     try:
         idinfo = verify_google_token(token_request.id_token)
         user_data = {
-            "id": idinfo["sub"],
-            "email": idinfo["email"],
-            "name": idinfo["name"],
-            "picture": idinfo["picture"],
+            "id": idinfo["uid"],
+            "email": idinfo.get("email", ""),
+            "name": idinfo.get("name", ""),
+            "picture": idinfo.get("picture", ""),
             "verified_email": idinfo.get("email_verified", False)
         }
         access_token_expires = timedelta(hours=JWT_EXPIRATION_HOURS)
@@ -35,7 +39,7 @@ async def google_auth(token_request: GoogleTokenRequest):
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid Google token: {str(e)}"
+            detail=f"Invalid Firebase ID token: {str(e)}"
         )
     except Exception as e:
         raise HTTPException(
