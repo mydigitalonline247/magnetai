@@ -5,7 +5,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from google.oauth2 import id_token
 from google.auth.transport import requests
 from datetime import datetime, timedelta
-from app.config import GOOGLE_CLIENT_ID, JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRATION_HOURS
+from app.config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRATION_HOURS
 import firebase_admin
 from firebase_admin import auth as firebase_auth, credentials as firebase_credentials
 import os
