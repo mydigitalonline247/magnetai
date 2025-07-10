@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, status, Depends
-from app.models import GoogleTokenRequest, LoginResponse, UserResponse, BaseResponse
+from app.models import FirebaseTokenRequest, LoginResponse, UserResponse, BaseResponse
 from app.auth import create_access_token, verify_token, verify_google_token
 from datetime import timedelta
 from app.config import JWT_EXPIRATION_HOURS
@@ -7,7 +7,7 @@ from app.config import JWT_EXPIRATION_HOURS
 router = APIRouter()
 
 @router.post("/auth/firebase")
-async def firebase_auth(token_request: GoogleTokenRequest):
+async def firebase_auth(token_request: FirebaseTokenRequest):
     """
     Authenticate a user using a Firebase ID token (from any provider: Google, Email, etc.).
     Expects a Firebase ID token from the frontend (obtained via Firebase Auth).
