@@ -1,5 +1,7 @@
 from fastapi import FastAPI, Request, Response, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.routes import auth_routes, user_routes
 from app.models import BaseResponse
 from datetime import datetime
@@ -15,6 +17,28 @@ async def http_exception_handler(request: Request, exc: HTTPException):
             success=False,
             message=exc.detail,
             data=None
+        ).dict()
+    )
+
+@app.exception_handler(StarletteHTTPException)
+async def starlette_http_exception_handler(request: Request, exc: StarletteHTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=BaseResponse(
+            success=False,
+            message=exc.detail,
+            data=None
+        ).dict()
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=422,
+        content=BaseResponse(
+            success=False,
+            message="Validation error",
+            data={"errors": exc.errors()}
         ).dict()
     )
 
