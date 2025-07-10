@@ -9,6 +9,7 @@ from app.config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRATION_HOURS
 import firebase_admin
 from firebase_admin import auth as firebase_auth, credentials as firebase_credentials
 import os
+from app.utils import base_response
 
 # Initialize Firebase Admin SDK if not already initialized
 if not firebase_admin._apps:
@@ -31,36 +32,39 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
     return encoded_jwt
 
+
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
         payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user_id: str = payload.get("sub")
         if user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication credentials",
-                headers={"WWW-Authenticate": "Bearer"},
+            return base_response(
+                success=False,
+                message="Invalid authentication credentials",
+                status_code=status.HTTP_401_UNAUTHORIZED
             )
-        return payload
+        return base_response(success=True, message="Token is valid", data=payload)
     except ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired",
-            headers={"WWW-Authenticate": "Bearer"},
+        return base_response(
+            success=False,
+            message="Token has expired",
+            status_code=status.HTTP_401_UNAUTHORIZED
         )
     except InvalidTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
-            headers={"WWW-Authenticate": "Bearer"},
+        return base_response(
+            success=False,
+            message="Invalid authentication credentials",
+            status_code=status.HTTP_401_UNAUTHORIZED
         )
+
 
 def verify_google_token(id_token_str: str):
     try:
         decoded_token = firebase_auth.verify_id_token(id_token_str)
-        return decoded_token
+        return base_response(success=True, message="Firebase ID token is valid", data=decoded_token)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid Firebase ID token: {str(e)}"
+        return base_response(
+            success=False,
+            message=f"Invalid Firebase ID token: {str(e)}",
+            status_code=status.HTTP_401_UNAUTHORIZED
         ) 
