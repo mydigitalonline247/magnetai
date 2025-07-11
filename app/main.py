@@ -6,6 +6,7 @@ from app.routes import auth_routes, user_routes
 from app.models import BaseResponse
 from datetime import datetime
 import json
+import traceback
 
 app = FastAPI(title="MagnetAI")
 
@@ -44,6 +45,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
+    print("Unhandled exception:", exc)
+    traceback.print_exc()  # This will print the full traceback to your console
     return JSONResponse(
         status_code=500,
         content=BaseResponse(
