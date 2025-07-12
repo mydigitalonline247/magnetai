@@ -14,7 +14,7 @@ async def firebase_auth(token_request: FirebaseTokenRequest):
     Expects a Firebase ID token from the frontend (obtained via Firebase Auth).
     """
     print(f"Received token request: {token_request}")
-    idinfo_response = verify_google_token(token_request.id_token)
+    idinfo_response = await verify_google_token(token_request.id_token)
     if not idinfo_response.status_code == 200:
         return idinfo_response
     

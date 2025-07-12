@@ -4,6 +4,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.routes import auth_routes, user_routes
 from app.models import BaseResponse
+from app.utils import base_response
 from datetime import datetime
 import json
 import traceback
@@ -15,28 +16,43 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="MagnetAI")
 
+@app.on_event("startup")
+async def startup_event():
+    logger.info("MagnetAI API starting up...")
+    logger.info("Firebase initialization status: Firebase Admin SDK will initialize on first use")
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    # Log request details
-    logger.info(f"Request: {request.method} {request.url}")
-    logger.info(f"Headers: {dict(request.headers)}")
-    
-    # Try to log body for POST requests
-    if request.method == "POST":
-        try:
-            body = await request.body()
-            logger.info(f"Request body (bytes): {body}")
-            if body:
-                try:
-                    body_str = body.decode('utf-8')
-                    logger.info(f"Request body (decoded): {body_str}")
-                except UnicodeDecodeError:
-                    logger.info("Request body could not be decoded as UTF-8")
-        except Exception as e:
-            logger.error(f"Error reading request body: {e}")
-    
-    response = await call_next(request)
-    return response
+    try:
+        # Log request details
+        logger.info(f"Request: {request.method} {request.url}")
+        
+        # Try to log body for POST requests (with timeout)
+        if request.method == "POST":
+            try:
+                import asyncio
+                body = await asyncio.wait_for(request.body(), timeout=5.0)
+                logger.info(f"Request body (bytes): {body[:200]}...")  # Log first 200 chars
+                if body:
+                    try:
+                        body_str = body.decode('utf-8')
+                        logger.info(f"Request body (decoded): {body_str[:200]}...")
+                    except UnicodeDecodeError:
+                        logger.info("Request body could not be decoded as UTF-8")
+            except asyncio.TimeoutError:
+                logger.warning("Request body read timed out")
+            except Exception as e:
+                logger.error(f"Error reading request body: {e}")
+        
+        response = await call_next(request)
+        return response
+    except Exception as e:
+        logger.error(f"Middleware error: {e}")
+        # Return a basic error response if middleware fails
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Internal server error in middleware"}
+        )
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
@@ -109,6 +125,24 @@ async def general_exception_handler(request: Request, exc: Exception):
 
 app.include_router(auth_routes.router)
 app.include_router(user_routes.router)
+
+# Add a simple health check endpoint
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
+
+@app.get("/test")
+async def test_endpoint():
+    return base_response(
+        success=True,
+        message="API is working",
+        data={"message": "Hello from MagnetAI API!"},
+        status_code=200
+    )
+
+@app.get("/ping")
+async def ping():
+    return {"pong": "MagnetAI API is running!"}
 
 if __name__ == "__main__":
     import uvicorn

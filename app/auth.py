@@ -15,22 +15,28 @@ import json
 
 # Initialize Firebase Admin SDK if not already initialized
 if not firebase_admin._apps:
-    cred_path = os.environ.get("FIREBASE_CREDENTIALS")
-    cred_b64 = os.environ.get("FIREBASE_CREDENTIALS_BASE64")
-    if cred_b64:
-        cred_json = base64.b64decode(cred_b64).decode("utf-8")
-        cred_dict = json.loads(cred_json)
-        cred = firebase_credentials.Certificate(cred_dict)
-        firebase_admin.initialize_app(cred)
-    elif cred_path:
-        cred = firebase_credentials.Certificate(cred_path)
-        firebase_admin.initialize_app(cred)
-    else:
-        firebase_admin.initialize_app()
+    try:
+        cred_path = os.environ.get("FIREBASE_CREDENTIALS")
+        cred_b64 = os.environ.get("FIREBASE_CREDENTIALS_BASE64")
+        if cred_b64:
+            cred_json = base64.b64decode(cred_b64).decode("utf-8")
+            cred_dict = json.loads(cred_json)
+            cred = firebase_credentials.Certificate(cred_dict)
+            firebase_admin.initialize_app(cred)
+        elif cred_path:
+            cred = firebase_credentials.Certificate(cred_path)
+            firebase_admin.initialize_app(cred)
+        else:
+            # Initialize without credentials (for development/testing)
+            print("Warning: No Firebase credentials found. Firebase features may not work.")
+            firebase_admin.initialize_app()
+    except Exception as e:
+        print(f"Warning: Failed to initialize Firebase: {e}")
+        # Continue without Firebase initialization
 
 security = HTTPBearer()
 
-def create_access_token(data: dict, expires_delta: timedelta = None):
+def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -66,10 +72,27 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
         )
 
 
-def verify_google_token(id_token_str: str):
+async def verify_google_token(id_token_str: str):
     try:
-        decoded_token = firebase_auth.verify_id_token(id_token_str)
-        return base_response(success=True, message="Firebase ID token is valid", data=decoded_token)
+        import asyncio
+        from concurrent.futures import ThreadPoolExecutor
+        
+        # Use ThreadPoolExecutor to run Firebase verification in a separate thread
+        # with a timeout to prevent hanging
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor() as executor:
+            decoded_token = await asyncio.wait_for(
+                loop.run_in_executor(executor, firebase_auth.verify_id_token, id_token_str),
+                timeout=10.0  # 10 second timeout
+            )
+            return base_response(success=True, message="Firebase ID token is valid", data=decoded_token)
+            
+    except asyncio.TimeoutError:
+        return base_response(
+            success=False,
+            message="Firebase token verification timed out",
+            status_code=status.HTTP_408_REQUEST_TIMEOUT
+        )
     except Exception as e:
         return base_response(
             success=False,
