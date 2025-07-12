@@ -101,6 +101,7 @@ async def test_auth_endpoint():
     """
     Test endpoint that doesn't require Firebase - just to verify the API is working
     """
+    print("test endpoint reached")
     return base_response(
         success=True,
         message="Auth endpoint is working (no Firebase required)",
@@ -113,6 +114,7 @@ async def test_token_format(token_request: FirebaseTokenRequest):
     """
     Test endpoint to validate token format without Firebase verification
     """
+    print(f"test-token endpoint reached with token: {token_request.id_token[:50]}...")
     token = token_request.id_token
     
     # Basic validation

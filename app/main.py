@@ -50,11 +50,17 @@ async def log_requests(request: Request, call_next):
             try:
                 import asyncio
                 body = await asyncio.wait_for(request.body(), timeout=5.0)
+                logger.info(f"Request body length: {len(body)} bytes")
                 logger.info(f"Request body (bytes): {body[:200]}...")  # Log first 200 chars
                 if body:
                     try:
                         body_str = body.decode('utf-8')
                         logger.info(f"Request body (decoded): {body_str[:200]}...")
+                        # Check if the JSON is complete
+                        if body_str.strip().endswith('}'):
+                            logger.info("Request body appears to be complete JSON")
+                        else:
+                            logger.warning("Request body appears to be incomplete JSON")
                     except UnicodeDecodeError:
                         logger.info("Request body could not be decoded as UTF-8")
             except asyncio.TimeoutError:
@@ -171,6 +177,28 @@ async def ping_endpoint():
         data={"message": "Hello from MagnetAI API!"},
         status_code=200
     )
+
+@app.post("/simple-test")
+async def simple_test(request: Request):
+    """
+    Simple test endpoint that doesn't use any models - just to test if POST requests work
+    """
+    try:
+        body = await request.body()
+        body_str = body.decode('utf-8') if body else ""
+        return base_response(
+            success=True,
+            message="Simple test endpoint reached",
+            data={"received_body": body_str[:100]},
+            status_code=200
+        )
+    except Exception as e:
+        return base_response(
+            success=False,
+            message=f"Error in simple test: {str(e)}",
+            data={"error": str(e)},
+            status_code=500
+        )
 
 @app.get("/firebase-status")
 async def firebase_status():
