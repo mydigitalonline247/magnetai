@@ -178,6 +178,14 @@ async def ping_endpoint():
         status_code=200
     )
 
+@app.post("/no-imports-test")
+async def no_imports_test():
+    """
+    Test endpoint that doesn't use any imports or complex operations
+    """
+    print("no-imports-test endpoint reached")
+    return {"status": "ok", "message": "no imports test works"}
+
 @app.post("/minimal-test")
 async def minimal_test():
     """
@@ -185,6 +193,28 @@ async def minimal_test():
     """
     print("minimal-test endpoint reached")
     return {"status": "ok", "message": "minimal test works"}
+
+@app.post("/step-test")
+async def step_test(request: Request):
+    """
+    Step-by-step test to find exactly where it hangs
+    """
+    print("step-test endpoint reached")
+    
+    print("Step 1: About to read request body...")
+    body = await request.body()
+    print("Step 2: Request body read successfully")
+    
+    print("Step 3: About to decode body...")
+    body_str = body.decode('utf-8') if body else ""
+    print("Step 4: Body decoded successfully")
+    
+    print("Step 5: About to create simple dict...")
+    simple_dict = {"test": "simple"}
+    print("Step 6: Simple dict created")
+    
+    print("Step 7: About to return response...")
+    return {"status": "ok", "data": body_str[:50]}
 
 @app.post("/simple-test")
 async def simple_test(request: Request):
