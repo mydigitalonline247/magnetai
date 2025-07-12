@@ -1,4 +1,4 @@
-from fastapi import APIRouter, status, Depends
+from fastapi import APIRouter, status, Depends, Request
 from app.models import FirebaseTokenRequest, LoginResponse, UserResponse
 from app.auth import create_access_token, verify_token, verify_google_token
 from datetime import timedelta
@@ -28,6 +28,89 @@ async def firebase_auth(token_request: FirebaseTokenRequest):
         return base_response(
             success=False,
             message=f"Error during Firebase verification: {str(e)}",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@router.post("/auth/firebase-raw")
+async def firebase_auth_raw(request: Request):
+    """
+    Raw version of Firebase auth that manually handles request body
+    """
+    print("firebase_auth_raw endpoint reached")
+    
+    try:
+        # Manually read and parse the request body
+        body = await request.body()
+        print(f"Request body read, length: {len(body)}")
+        
+        body_str = body.decode('utf-8')
+        print(f"Request body decoded: {body_str[:100]}...")
+        
+        import json
+        data = json.loads(body_str)
+        print(f"JSON parsed: {data}")
+        
+        id_token = data.get("id_token")
+        if not id_token:
+            return base_response(
+                success=False,
+                message="Missing id_token in request body",
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        
+        print(f"Starting Firebase verification for token: {id_token[:50]}...")
+        idinfo_response = await verify_google_token(id_token)
+        
+        if not idinfo_response.status_code == 200:
+            return idinfo_response
+            
+        # Continue with the rest of the logic...
+        response_data = idinfo_response.body
+        if isinstance(response_data, bytes):
+            response_data = response_data.decode('utf-8')
+        if isinstance(response_data, str):
+            response_data = json.loads(response_data)
+        
+        idinfo = response_data.get("data", {})
+        
+        user_data = {
+            "id": idinfo.get("uid", ""),
+            "email": idinfo.get("email", ""),
+            "name": idinfo.get("name", ""),
+            "picture": idinfo.get("picture", ""),
+            "verified_email": idinfo.get("email_verified", False)
+        }
+        
+        from datetime import timedelta
+        from app.config import JWT_EXPIRATION_HOURS
+        from app.auth import create_access_token
+        
+        access_token_expires = timedelta(hours=JWT_EXPIRATION_HOURS)
+        access_token = create_access_token(
+            data={"sub": user_data["id"], "email": user_data["email"]},
+            expires_delta=access_token_expires
+        )
+        
+        login_response = LoginResponse(
+            access_token=access_token,
+            token_type="bearer",
+            user=UserResponse(**user_data)
+        )
+        
+        return base_response(
+            success=True,
+            message="Login was successful",
+            data=login_response.dict(),
+            status_code=status.HTTP_200_OK
+        )
+        
+    except Exception as e:
+        print(f"Error in firebase_auth_raw: {e}")
+        import traceback
+        traceback.print_exc()
+        return base_response(
+            success=False,
+            message=f"Error processing request: {str(e)}",
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
     

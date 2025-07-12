@@ -45,28 +45,10 @@ async def log_requests(request: Request, call_next):
         # Log request details
         logger.info(f"Request: {request.method} {request.url}")
         
-        # Try to log body for POST requests (with timeout)
+        # Don't read the request body in middleware to avoid conflicts
+        # Just log that it's a POST request
         if request.method == "POST":
-            try:
-                import asyncio
-                body = await asyncio.wait_for(request.body(), timeout=5.0)
-                logger.info(f"Request body length: {len(body)} bytes")
-                logger.info(f"Request body (bytes): {body[:200]}...")  # Log first 200 chars
-                if body:
-                    try:
-                        body_str = body.decode('utf-8')
-                        logger.info(f"Request body (decoded): {body_str[:200]}...")
-                        # Check if the JSON is complete
-                        if body_str.strip().endswith('}'):
-                            logger.info("Request body appears to be complete JSON")
-                        else:
-                            logger.warning("Request body appears to be incomplete JSON")
-                    except UnicodeDecodeError:
-                        logger.info("Request body could not be decoded as UTF-8")
-            except asyncio.TimeoutError:
-                logger.warning("Request body read timed out")
-            except Exception as e:
-                logger.error(f"Error reading request body: {e}")
+            logger.info("POST request received (body will be handled by endpoint)")
         
         response = await call_next(request)
         return response
@@ -215,6 +197,14 @@ async def step_test(request: Request):
     
     print("Step 7: About to return response...")
     return {"status": "ok", "data": body_str[:50]}
+
+@app.post("/no-body-test")
+async def no_body_test():
+    """
+    Test endpoint that doesn't read request body at all
+    """
+    print("no-body-test endpoint reached")
+    return {"status": "ok", "message": "no body test works"}
 
 @app.post("/simple-test")
 async def simple_test(request: Request):
