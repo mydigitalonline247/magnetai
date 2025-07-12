@@ -14,9 +14,22 @@ async def firebase_auth(token_request: FirebaseTokenRequest):
     Expects a Firebase ID token from the frontend (obtained via Firebase Auth).
     """
     print(f"Received token request: {token_request}")
-    idinfo_response = await verify_google_token(token_request.id_token)
-    if not idinfo_response.status_code == 200:
-        return idinfo_response
+    print(f"Starting Firebase verification...")
+    
+    try:
+        idinfo_response = await verify_google_token(token_request.id_token)
+        print(f"Firebase verification completed with status: {idinfo_response.status_code}")
+        
+        if not idinfo_response.status_code == 200:
+            print(f"Firebase verification failed: {idinfo_response.body}")
+            return idinfo_response
+    except Exception as e:
+        print(f"Error during Firebase verification: {e}")
+        return base_response(
+            success=False,
+            message=f"Error during Firebase verification: {str(e)}",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
     
     # Get the response data from the JSONResponse
     response_data = idinfo_response.body
@@ -80,5 +93,17 @@ async def get_current_user(token_response = Depends(verify_token)):
         success=True,
         message="User profile retrieved successfully",
         data=user_response.dict(),
+        status_code=status.HTTP_200_OK
+    )
+
+@router.post("/auth/test")
+async def test_auth_endpoint():
+    """
+    Test endpoint that doesn't require Firebase - just to verify the API is working
+    """
+    return base_response(
+        success=True,
+        message="Auth endpoint is working (no Firebase required)",
+        data={"test": "This endpoint works without Firebase"},
         status_code=status.HTTP_200_OK
     ) 

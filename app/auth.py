@@ -77,23 +77,36 @@ async def verify_google_token(id_token_str: str):
         import asyncio
         from concurrent.futures import ThreadPoolExecutor
         
+        # Check if Firebase is properly initialized
+        if not firebase_admin._apps:
+            return base_response(
+                success=False,
+                message="Firebase not properly initialized. Check environment variables.",
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        print(f"Starting Firebase token verification for token: {id_token_str[:50]}...")
+        
         # Use ThreadPoolExecutor to run Firebase verification in a separate thread
         # with a timeout to prevent hanging
         loop = asyncio.get_event_loop()
         with ThreadPoolExecutor() as executor:
             decoded_token = await asyncio.wait_for(
                 loop.run_in_executor(executor, firebase_auth.verify_id_token, id_token_str),
-                timeout=10.0  # 10 second timeout
+                timeout=15.0  # 15 second timeout
             )
+            print(f"Firebase token verification successful")
             return base_response(success=True, message="Firebase ID token is valid", data=decoded_token)
             
     except asyncio.TimeoutError:
+        print(f"Firebase token verification timed out after 15 seconds")
         return base_response(
             success=False,
             message="Firebase token verification timed out",
             status_code=status.HTTP_408_REQUEST_TIMEOUT
         )
     except Exception as e:
+        print(f"Firebase token verification error: {str(e)}")
         return base_response(
             success=False,
             message=f"Invalid Firebase ID token: {str(e)}",

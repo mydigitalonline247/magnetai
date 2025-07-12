@@ -19,7 +19,25 @@ app = FastAPI(title="MagnetAI")
 @app.on_event("startup")
 async def startup_event():
     logger.info("MagnetAI API starting up...")
-    logger.info("Firebase initialization status: Firebase Admin SDK will initialize on first use")
+    
+    # Check Firebase configuration
+    try:
+        import firebase_admin
+        if firebase_admin._apps:
+            logger.info("Firebase Admin SDK is initialized")
+        else:
+            logger.warning("Firebase Admin SDK is not initialized - will initialize on first use")
+            
+        # Check environment variables
+        import os
+        firebase_creds = os.environ.get("FIREBASE_CREDENTIALS_BASE64")
+        if firebase_creds:
+            logger.info("Firebase credentials found in environment")
+        else:
+            logger.warning("No Firebase credentials found - Firebase auth will not work")
+            
+    except Exception as e:
+        logger.error(f"Error checking Firebase configuration: {e}")
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -129,7 +147,12 @@ app.include_router(user_routes.router)
 # Add a simple health check endpoint
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
+    return base_response(
+        success=True,
+        message="API is working",
+        data={"message": "Hello from MagnetAI API!"},
+        status_code=200
+    )
 
 @app.get("/test")
 async def test_endpoint():
@@ -141,8 +164,40 @@ async def test_endpoint():
     )
 
 @app.get("/ping")
-async def ping():
-    return {"pong": "MagnetAI API is running!"}
+async def ping_endpoint():
+    return base_response(
+        success=True,
+        message="API is working",
+        data={"message": "Hello from MagnetAI API!"},
+        status_code=200
+    )
+
+@app.get("/firebase-status")
+async def firebase_status():
+    """Check Firebase initialization status"""
+    try:
+        import firebase_admin
+        import os
+        
+        status = {
+            "firebase_initialized": bool(firebase_admin._apps),
+            "has_credentials": bool(os.environ.get("FIREBASE_CREDENTIALS_BASE64")),
+            "app_count": len(firebase_admin._apps) if firebase_admin._apps else 0
+        }
+        
+        return base_response(
+            success=True,
+            message="Firebase status retrieved",
+            data=status,
+            status_code=200
+        )
+    except Exception as e:
+        return base_response(
+            success=False,
+            message=f"Error checking Firebase status: {str(e)}",
+            data={"error": str(e)},
+            status_code=500
+        )
 
 if __name__ == "__main__":
     import uvicorn
