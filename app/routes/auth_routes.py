@@ -13,12 +13,24 @@ async def firebase_auth(token_request: FirebaseTokenRequest):
     Authenticate a user using a Firebase ID token (from any provider: Google, Email, etc.).
     Expects a Firebase ID token from the frontend (obtained via Firebase Auth).
     """
+    print(f"Received token request: {token_request}")
     idinfo_response = verify_google_token(token_request.id_token)
     if not idinfo_response.status_code == 200:
         return idinfo_response
-    idinfo = idinfo_response.body if hasattr(idinfo_response, 'body') else idinfo_response.json()
+    
+    # Get the response data from the JSONResponse
+    response_data = idinfo_response.body
+    if isinstance(response_data, bytes):
+        response_data = response_data.decode('utf-8')
+    if isinstance(response_data, str):
+        import json
+        response_data = json.loads(response_data)
+    
+    # Extract the actual data from the BaseResponse structure
+    idinfo = response_data.get("data", {})
+    
     user_data = {
-        "id": idinfo["uid"],
+        "id": idinfo.get("uid", ""),
         "email": idinfo.get("email", ""),
         "name": idinfo.get("name", ""),
         "picture": idinfo.get("picture", ""),
@@ -45,10 +57,21 @@ async def firebase_auth(token_request: FirebaseTokenRequest):
 async def get_current_user(token_response = Depends(verify_token)):
     if not token_response.status_code == 200:
         return token_response
-    token_data = token_response.body if hasattr(token_response, 'body') else token_response.json()
+    
+    # Get the response data from the JSONResponse
+    response_data = token_response.body
+    if isinstance(response_data, bytes):
+        response_data = response_data.decode('utf-8')
+    if isinstance(response_data, str):
+        import json
+        response_data = json.loads(response_data)
+    
+    # Extract the actual data from the BaseResponse structure
+    token_data = response_data.get("data", {})
+    
     user_response = UserResponse(
-        id=token_data["sub"],
-        email=token_data["email"],
+        id=token_data.get("sub", ""),
+        email=token_data.get("email", ""),
         name="", # You'd get this from your database
         picture="", # You'd get this from your database
         verified_email=True

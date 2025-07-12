@@ -8,11 +8,22 @@ router = APIRouter()
 async def protected_route(token_response = Depends(verify_token)):
     if not token_response.status_code == 200:
         return token_response
-    token_data = token_response.body if hasattr(token_response, 'body') else token_response.json()
+    
+    # Get the response data from the JSONResponse
+    response_data = token_response.body
+    if isinstance(response_data, bytes):
+        response_data = response_data.decode('utf-8')
+    if isinstance(response_data, str):
+        import json
+        response_data = json.loads(response_data)
+    
+    # Extract the actual data from the BaseResponse structure
+    token_data = response_data.get("data", {})
+    
     return base_response(
         success=True,
         message="Protected route accessed successfully",
-        data={"message": f"Hello {token_data['email']}, this is a protected route!"},
+        data={"message": f"Hello {token_data.get('email', 'user')}, this is a protected route!"},
         status_code=status.HTTP_200_OK
     )
 
