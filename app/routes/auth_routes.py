@@ -106,4 +106,60 @@ async def test_auth_endpoint():
         message="Auth endpoint is working (no Firebase required)",
         data={"test": "This endpoint works without Firebase"},
         status_code=status.HTTP_200_OK
-    ) 
+    )
+
+@router.post("/auth/test-token")
+async def test_token_format(token_request: FirebaseTokenRequest):
+    """
+    Test endpoint to validate token format without Firebase verification
+    """
+    token = token_request.id_token
+    
+    # Basic validation
+    if not token or len(token) < 100:
+        return base_response(
+            success=False,
+            message="Token too short",
+            data={"token_length": len(token) if token else 0},
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Check JWT format
+    token_parts = token.split('.')
+    if len(token_parts) != 3:
+        return base_response(
+            success=False,
+            message="Invalid JWT format",
+            data={"parts_count": len(token_parts)},
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Try to decode the header (first part) to see if it's valid
+    try:
+        import base64
+        import json
+        
+        # Decode the header
+        header_part = token_parts[0]
+        # Add padding if needed
+        header_part += '=' * (4 - len(header_part) % 4)
+        header_json = base64.urlsafe_b64decode(header_part)
+        header = json.loads(header_json)
+        
+        return base_response(
+            success=True,
+            message="Token format is valid",
+            data={
+                "token_length": len(token),
+                "header": header,
+                "parts_count": len(token_parts)
+            },
+            status_code=status.HTTP_200_OK
+        )
+    except Exception as e:
+        return base_response(
+            success=False,
+            message="Token header could not be decoded",
+            data={"error": str(e)},
+            status_code=status.HTTP_400_BAD_REQUEST
+        ) 

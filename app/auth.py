@@ -87,10 +87,35 @@ async def verify_google_token(id_token_str: str):
         
         print(f"Starting Firebase token verification for token: {id_token_str[:50]}...")
         
+        # Add more detailed logging
+        print(f"Firebase apps available: {list(firebase_admin._apps.keys())}")
+        
+        # Basic token format validation
+        if not id_token_str or len(id_token_str) < 100:
+            return base_response(
+                success=False,
+                message="Invalid token format - token too short",
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if token has the expected format (3 parts separated by dots)
+        token_parts = id_token_str.split('.')
+        if len(token_parts) != 3:
+            return base_response(
+                success=False,
+                message="Invalid token format - not a valid JWT",
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        
+        print(f"Token format validation passed, proceeding with Firebase verification...")
+        
         # Use ThreadPoolExecutor to run Firebase verification in a separate thread
         # with a timeout to prevent hanging
         loop = asyncio.get_event_loop()
+        print(f"Starting async Firebase verification...")
+        
         with ThreadPoolExecutor() as executor:
+            print(f"Created ThreadPoolExecutor, starting verification...")
             decoded_token = await asyncio.wait_for(
                 loop.run_in_executor(executor, firebase_auth.verify_id_token, id_token_str),
                 timeout=15.0  # 15 second timeout
