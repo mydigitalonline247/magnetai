@@ -178,26 +178,62 @@ async def ping_endpoint():
         status_code=200
     )
 
+@app.post("/minimal-test")
+async def minimal_test():
+    """
+    Minimal test endpoint - no request body, no custom functions
+    """
+    print("minimal-test endpoint reached")
+    return {"status": "ok", "message": "minimal test works"}
+
 @app.post("/simple-test")
 async def simple_test(request: Request):
     """
     Simple test endpoint that doesn't use any models - just to test if POST requests work
     """
     try:
+        print("simple-test endpoint reached")
         body = await request.body()
         body_str = body.decode('utf-8') if body else ""
-        return base_response(
+        print(f"Body received: {body_str}")
+        
+        # Test direct JSONResponse first
+        print("Creating direct JSONResponse...")
+        direct_response = JSONResponse(
+            status_code=200,
+            content={"success": True, "message": "Direct response test", "data": {"test": "direct"}}
+        )
+        print("Direct JSONResponse created successfully")
+        
+        # Test BaseResponse creation
+        print("Creating BaseResponse...")
+        from app.models import BaseResponse
+        base_resp = BaseResponse(success=True, message="BaseResponse test", data={"test": "base"})
+        print("BaseResponse created successfully")
+        
+        # Test dict() conversion
+        print("Converting BaseResponse to dict...")
+        resp_dict = base_resp.dict()
+        print("BaseResponse converted to dict successfully")
+        
+        # Test final response
+        print("Creating final response...")
+        final_response = base_response(
             success=True,
             message="Simple test endpoint reached",
             data={"received_body": body_str[:100]},
             status_code=200
         )
+        print("Final response created successfully")
+        return final_response
+        
     except Exception as e:
-        return base_response(
-            success=False,
-            message=f"Error in simple test: {str(e)}",
-            data={"error": str(e)},
-            status_code=500
+        print(f"Error in simple test: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
         )
 
 @app.get("/firebase-status")
